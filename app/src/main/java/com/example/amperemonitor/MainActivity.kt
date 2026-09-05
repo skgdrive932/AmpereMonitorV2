@@ -1,11 +1,9 @@
 package com.example.amperemonitor
 
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,302 +16,159 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Locale
-import kotlin.math.abs
-
-data class BatteryInfo(
-    val level: Int = 0,
-    val temperatureC: Float = 0f,
-    val voltageV: Float = 0f,
-    val status: String = "Unknown",
-    val plugged: String = "Not plugged",
-    val health: String = "Unknown",
-    val technology: String = "Unknown"
-)
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
-
-    private val batteryManager by lazy {
-        getSystemService(BATTERY_SERVICE) as BatteryManager
-    }
-
-    private var batteryInfo by mutableStateOf(BatteryInfo())
-    private var currentMa by mutableFloatStateOf(Float.NaN)
-    private var minMa by mutableFloatStateOf(Float.NaN)
-    private var maxMa by mutableFloatStateOf(Float.NaN)
-
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            intent ?: return
-            batteryInfo = parseBatteryIntent(intent)
-            readCurrent()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val sticky = registerReceiver(
-            receiver,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        )
-        if (sticky != null) {
-            batteryInfo = parseBatteryIntent(sticky)
-        }
-
         setContent {
-            AmpereScreen(
-                batteryInfo = batteryInfo,
-                currentMa = currentMa,
-                minMa = minMa,
-                maxMa = maxMa
-            )
-
-            LaunchedEffect(Unit) {
-                while (true) {
-                    readCurrent()
-                    kotlinx.coroutines.delay(1000)
+            MaterialTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color(0xFF121212)
+                ) {
+                    AmpereMonitorScreen()
                 }
             }
         }
     }
-
-    private fun parseBatteryIntent(intent: Intent): BatteryInfo {
-        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0)
-        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
-        val temperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) / 10f
-        val voltage = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) / 1000f
-        val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-        val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
-        val health = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, -1)
-
-        return BatteryInfo(
-            level = if (scale > 0) level * 100 / scale else 0,
-            temperatureC = temperature,
-            voltageV = voltage,
-            status = statusText(status),
-            plugged = pluggedText(plugged),
-            health = healthText(health),
-            technology = intent.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) ?: "Unknown"
-        )
-    }
-
-    private fun readCurrent() {
-        val microAmps = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-        } else {
-            Int.MIN_VALUE
-        }
-
-        if (microAmps == Int.MIN_VALUE || microAmps == 0) {
-            currentMa = Float.NaN
-            return
-        }
-
-        val ma = abs(microAmps) / 1000f
-        currentMa = ma
-
-        if (minMa.isNaN() || ma < minMa) minMa = ma
-        if (maxMa.isNaN() || ma > maxMa) maxMa = ma
-    }
-
-    private fun statusText(status: Int) = when (status) {
-        BatteryManager.BATTERY_STATUS_CHARGING -> "Charging"
-        BatteryManager.BATTERY_STATUS_FULL -> "Full"
-        BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
-        BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "Not charging"
-        else -> "Unknown"
-    }
-
-    private fun pluggedText(value: Int) = when (value) {
-        BatteryManager.BATTERY_PLUGGED_AC -> "AC charger"
-        BatteryManager.BATTERY_PLUGGED_USB -> "USB"
-        BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
-        else -> "Not plugged"
-    }
-
-    private fun healthText(value: Int) = when (value) {
-        BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
-        BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
-        BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
-        BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over voltage"
-        BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
-        else -> "Unknown"
-    }
-
-    override fun onDestroy() {
-        unregisterReceiver(receiver)
-        super.onDestroy()
-    }
 }
 
-@androidx.compose.runtime.Composable
-fun AmpereScreen(
-    batteryInfo: BatteryInfo,
-    currentMa: Float,
-    minMa: Float,
-    maxMa: Float
-) {
-    val teal = Color(0xFF00BFAE)
-    val header = Color(0xFF455A64)
+@Composable
+fun AmpereMonitorScreen() {
+    val context = LocalContext.current
 
-    MaterialTheme {
+    val currentAmperes = remember { mutableFloatStateOf(0f) }
+    val voltage = remember { mutableFloatStateOf(0f) }
+    val temperature = remember { mutableFloatStateOf(0f) }
+    val batteryLevel = remember { mutableStateOf("0%") }
+    val chargingStatus = remember { mutableStateOf("Discharging") }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+            val intentFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = context.registerReceiver(null, intentFilter)
+
+            // Current in mA
+            val currentNow = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+            currentAmperes.floatValue = currentNow / 1000f
+
+            // Voltage, Temp, Level
+            batteryStatus?.let {
+                val volt = it.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) / 1000f
+                val temp = it.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) / 10f
+                val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+
+                voltage.floatValue = volt
+                temperature.floatValue = temp
+                batteryLevel.value = "${((level / scale.toFloat()) * 100).toInt()}%"
+
+                chargingStatus.value = when (status) {
+                    BatteryManager.BATTERY_STATUS_CHARGING -> "Charging"
+                    BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
+                    BatteryManager.BATTERY_STATUS_FULL -> "Full"
+                    else -> "Not Charging"
+                }
+            }
+
+            delay(1000)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Ampere Monitor",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Row {
+                IconButton(onClick = {}) {
+                    Icon(Icons.Default.Info, contentDescription = "Info", tint = Color.White)
+                }
+                IconButton(onClick = {}) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Main Ampere Display Box
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White)
+                .fillMaxWidth()
+                .background(Color(0xFF1E1E1E), shape = RoundedCornerShape(16.dp))
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(header)
-                    .padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 28.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "AmpereMonitor",
-                        color = Color.White,
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row {
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.Share, "Share", tint = Color.White)
-                        }
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.Settings, "Settings", tint = Color.White)
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(18.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    repeat(5) { index ->
-                        Spacer(
-                            modifier = Modifier
-                                .padding(horizontal = 4.dp)
-                                .width(52.dp)
-                                .height(8.dp)
-                                .background(
-                                    if (index < 2) teal else Color(0xFF60737B),
-                                    RoundedCornerShape(8.dp)
-                                )
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(18.dp))
-
-                Text(
-                    text = if (currentMa.isNaN()) "Unavailable" else
-                        String.format(Locale.US, "%.0f mA", currentMa),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    color = teal,
-                    fontSize = 54.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        "min: " + if (minMa.isNaN()) "—" else
-                            String.format(Locale.US, "%.0f mA", minMa),
-                        color = teal,
-                        fontSize = 20.sp
-                    )
-                    Text(
-                        "max: " + if (maxMa.isNaN()) "—" else
-                            String.format(Locale.US, "%.0f mA", maxMa),
-                        color = teal,
-                        fontSize = 20.sp
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 34.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                BatteryRow("Status:", batteryInfo.status, teal)
-                BatteryRow("Plugged:", batteryInfo.plugged, teal)
-                BatteryRow("Level:", "${batteryInfo.level}%", teal)
-                BatteryRow("Health:", batteryInfo.health, teal)
-                BatteryRow("Technology:", batteryInfo.technology, teal)
-
-                BatteryRow(
-                    "Temperature:",
-                    String.format(Locale.US, "%.1f °C", batteryInfo.temperatureC),
-                    teal
-                )
-
-                BatteryRow(
-                    "Voltage:",
-                    String.format(Locale.US, "%.2f V", batteryInfo.voltageV),
-                    teal
-                )
-
-                Spacer(Modifier.height(22.dp))
-
-                BatteryRow("Manufacturer:", Build.MANUFACTURER, teal)
-                BatteryRow("Model:", Build.MODEL, teal)
-                BatteryRow("Android version:", Build.VERSION.RELEASE, teal)
-                BatteryRow("Build ID:", Build.ID, teal)
-            }
+            Text(
+                text = "${currentAmperes.floatValue.toInt()} mA",
+                color = if (currentAmperes.floatValue >= 0) Color(0xFF4CAF50) else Color(0xFFE53935),
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = chargingStatus.value,
+                color = Color.Gray,
+                fontSize = 16.sp
+            )
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Battery Info Cards
+        InfoRow(label = "Level", value = batteryLevel.value)
+        InfoRow(label = "Voltage", value = "${voltage.floatValue} V")
+        InfoRow(label = "Temperature", value = "${temperature.floatValue} °C")
     }
 }
 
-@androidx.compose.runtime.Composable
-fun BatteryRow(title: String, value: String, color: Color) {
+@Composable
+fun InfoRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.Center
+            .padding(vertical = 8.dp)
+            .background(Color(0xFF1E1E1E), shape = RoundedCornerShape(8.dp))
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            title,
-            color = color,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(value, color = color, fontSize = 18.sp)
+        Text(text = label, color = Color.Gray, fontSize = 16.sp)
+        Text(text = value, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
 }
